@@ -1,0 +1,13 @@
+{
+  "name": "reedy",
+  "version": "1.0.0",
+  "description": "Send Claude responses to the Reedy RSVP speed reader",
+  "author": {
+    "name": "Josh Hale"
+  },
+  "homepage": "https://github.com/LegoGuy32109/claude-reedy-skill",
+  "repository": "https://github.com/LegoGuy32109/claude-reedy-skill",
+  "license": "MIT",
+  "keywords": ["speed-reading", "rsvp", "reedy", "productivity", "reading"],
+  "commands": "./commands/"
+}

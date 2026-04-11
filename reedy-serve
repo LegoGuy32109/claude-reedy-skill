@@ -10,7 +10,7 @@ Usage:
   python3 reedy-serve --server        # run HTTP server (spawned internally)
 """
 
-import os, sys, socket, subprocess, time, json, re, platform
+import os, sys, socket, subprocess, time, json, re, platform, shlex
 from pathlib import Path
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -22,8 +22,6 @@ PORT = 7766
 # ── Platform-correct data directory ─────────────────────────────────────────
 
 def data_dir() -> Path:
-    if platform.system() == 'Windows':
-        return Path.home() / 'AppData' / 'Local' / 'reedy'
     return Path.home() / '.local' / 'share' / 'reedy'
 
 
@@ -270,12 +268,28 @@ class Handler(BaseHTTPRequestHandler):
 
 # ── Modes ────────────────────────────────────────────────────────────────────
 
-def mode_ingest(raw_slug: str):
-    """Read stdin, save as timestamped .txt, set as pending, start server."""
+def mode_write_runtime(plugin_root: str):
+    """Write session runtime config so commands know which python/script to use."""
+    d = data_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    script_path = str(Path(plugin_root) / 'reedy-serve')
+    python_cmd = sys.executable
+    (d / 'reedy.env').write_text(
+        f'REEDY_PY={shlex.quote(python_cmd)}\n'
+        f'REEDY_SCRIPT={shlex.quote(script_path)}\n',
+        encoding='utf-8'
+    )
+
+
+def mode_ingest(raw_slug: str, file_path: str | None = None):
+    """Read text from file or stdin, save as timestamped .txt, set as pending, start server."""
     d = data_dir()
     d.mkdir(parents=True, exist_ok=True)
 
-    text = sys.stdin.read()
+    if file_path:
+        text = Path(file_path).read_text(encoding='utf-8')
+    else:
+        text = sys.stdin.read()
 
     # Prepend timestamp if slug doesn't already have one
     if not re.match(r'^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_', raw_slug):
@@ -351,8 +365,11 @@ if __name__ == '__main__':
         mode_list()
     elif cmd == '--clean':
         mode_clean()
+    elif cmd == '--write-runtime' and len(args) >= 2:
+        mode_write_runtime(args[1])
     elif cmd == '--ingest' and len(args) >= 2:
-        mode_ingest(args[1])
+        file_path = next((args[i + 1] for i, a in enumerate(args) if a == '--file'), None)
+        mode_ingest(args[1], file_path)
     else:
         print(f'Unknown: {args}', file=sys.stderr)
         sys.exit(1)

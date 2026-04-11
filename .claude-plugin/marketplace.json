@@ -1,0 +1,17 @@
+{
+  "name": "reedy-marketplace",
+  "owner": {
+    "name": "Josh Hale"
+  },
+  "plugins": [
+    {
+      "name": "reedy",
+      "source": "./",
+      "description": "Send Claude responses to the Reedy RSVP speed reader",
+      "version": "1.0.0",
+      "author": {
+        "name": "Josh Hale"
+      }
+    }
+  ]
+}
