@@ -12,19 +12,24 @@ A Claude Code skill that integrates the **Reedy RSVP speed reader** with Claude 
 
 ## Installation
 
-### Option 1: Install from Claude Code (Recommended)
+### Option 1: Quick Install (Recommended)
 
-Coming soon! Once published to the Claude Code skill registry, you'll be able to install with:
+The easiest way to install Reedy:
 
+```bash
+git clone https://github.com/LegoGuy32109/claude-reedy-skill.git ~/.claude/skills/reedy
+/reedy setup
 ```
-/skills install reedy
-```
+
+That's it! The `/reedy setup` command will verify everything is working.
 
 ### Option 2: Manual Installation
 
+If you prefer manual setup:
+
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/claude-reedy-skill.git
+   git clone https://github.com/LegoGuy32109/claude-reedy-skill.git
    ```
 
 2. Copy the skill to your Claude Code skills directory:
@@ -41,6 +46,14 @@ Coming soon! Once published to the Claude Code skill registry, you'll be able to
    ```bash
    /reedy setup
    ```
+
+### Option 3: Claude Code Skills Registry (Coming Soon)
+
+Once published to the Claude Code skill registry, you'll be able to install with:
+
+```
+/skills install reedy
+```
 
 ### Requirements
 
@@ -173,7 +186,9 @@ This skill is designed for easy distribution:
 
 ## Contributing
 
-Found a bug or have a feature request? Open an issue on GitHub!
+Found a bug or have a feature request? Open an issue on [GitHub](https://github.com/LegoGuy32109/claude-reedy-skill/issues)!
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines on how to contribute.
 
 ## License
 
@@ -203,4 +218,24 @@ A: There's no limit! Reedy supports speeds from 100 to 1000+ WPM depending on th
 
 ---
 
-**Ready to speed-read Claude responses?** Install the [Reedy extension](https://chromewebstore.google.com/detail/speed-reading/ihbdojmggkmjbhfflnchljfkgdhokffj) and run `/reedy setup` in Claude Code to get started!
+## Getting Started
+
+1. **Install the Reedy browser extension** from the [Chrome Web Store](https://chromewebstore.google.com/detail/speed-reading/ihbdojmggkmjbhfflnchljfkgdhokffj)
+
+2. **Install Reedy for Claude Code** - Run this in your terminal:
+   ```bash
+   git clone https://github.com/LegoGuy32109/claude-reedy-skill.git ~/.claude/skills/reedy
+   ```
+
+3. **Verify setup** - Run this in Claude Code:
+   ```
+   /reedy setup
+   ```
+
+4. **Start reading!** - Use `/reedy` to send any Claude response to your speed reader
+
+---
+
+**Questions?** See the [FAQ section](#frequently-asked-questions) or check [GitHub Issues](https://github.com/LegoGuy32109/claude-reedy-skill/issues)
+
+**GitHub Repository:** [LegoGuy32109/claude-reedy-skill](https://github.com/LegoGuy32109/claude-reedy-skill)

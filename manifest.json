@@ -6,7 +6,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/claude-reedy-skill.git"
+    "url": "https://github.com/LegoGuy32109/claude-reedy-skill.git"
   },
   "keywords": [
     "speed-reading",
@@ -30,8 +30,8 @@
     "/reedy stop": "Stop the Reedy local server",
     "/reedy clean": "Clear Reedy reading history"
   },
-  "homepage": "https://github.com/yourusername/claude-reedy-skill",
+  "homepage": "https://github.com/LegoGuy32109/claude-reedy-skill",
   "bugs": {
-    "url": "https://github.com/yourusername/claude-reedy-skill/issues"
+    "url": "https://github.com/LegoGuy32109/claude-reedy-skill/issues"
   }
 }
