@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+"""
+reedy-serve: Persistent SPA for Reedy speed reader history.
+
+Usage:
+  python3 reedy-serve --ingest SLUG   # pipe text via stdin; starts server if needed
+  python3 reedy-serve --stop          # stop the running server
+  python3 reedy-serve --list          # print history file names
+  python3 reedy-serve --clean         # delete all history files
+  python3 reedy-serve --server        # run HTTP server (spawned internally)
+"""
+
+import os, sys, socket, subprocess, time, json, re, platform
+from pathlib import Path
+from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse
+
+PORT = 7766
+
+
+# ── Platform-correct data directory ─────────────────────────────────────────
+
+def data_dir() -> Path:
+    if platform.system() == 'Windows':
+        return Path.home() / 'AppData' / 'Local' / 'reedy'
+    return Path.home() / '.local' / 'share' / 'reedy'
+
+
+# ── Server health check ──────────────────────────────────────────────────────
+
+def server_running() -> bool:
+    try:
+        s = socket.create_connection(('127.0.0.1', PORT), timeout=0.5)
+        s.close()
+        return True
+    except OSError:
+        return False
+
+
+def start_server_daemon():
+    subprocess.Popen(
+        [sys.executable, os.path.abspath(__file__), '--server'],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    for _ in range(30):
+        time.sleep(0.15)
+        if server_running():
+            return
+    raise RuntimeError('Reedy server failed to start within 5s')
+
+
+# ── SPA HTML (baked-in, never written to disk) ───────────────────────────────
+
+SPA_HTML = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Reedy</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{display:flex;height:100vh;font-family:system-ui,sans-serif;background:#f4f4f4;overflow:hidden}
+
+    #sidebar{
+      width:230px;min-width:230px;background:#111827;color:#ccc;
+      display:flex;flex-direction:column;overflow:hidden
+    }
+    #sidebar h2{
+      padding:16px 14px 10px;font-size:10px;letter-spacing:2px;
+      text-transform:uppercase;color:#4b5563;border-bottom:1px solid #1f2937;flex-shrink:0
+    }
+    #history-list{overflow-y:auto;flex:1}
+    .item{
+      padding:10px 14px;cursor:pointer;border-bottom:1px solid #1f2937;
+      transition:background .12s,color .12s
+    }
+    .item:hover{background:#1f2937;color:#fff}
+    .item.active{background:#2563eb;color:#fff}
+    .item .title{
+      font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+      color:inherit
+    }
+    .item .date{font-size:11px;color:#4b5563;margin-top:3px}
+    .item.active .date{color:#93c5fd}
+    .empty-history{padding:16px 14px;font-size:13px;color:#374151}
+
+    #pane{flex:1;display:flex;flex-direction:column;overflow:hidden}
+    #hint{
+      padding:14px 20px;background:#2563eb;color:#fff;font-size:13px;
+      text-align:center;flex-shrink:0;display:none
+    }
+    #hint.on{display:block}
+    #hint a{color:#93c5fd;text-decoration:underline}
+    #hint a:hover{color:#fff}
+    #content-wrap{flex:1;overflow-y:auto;padding:44px 64px}
+    #content{
+      font-family:Georgia,serif;font-size:18px;line-height:1.85;
+      max-width:860px;color:#1a1a1a;white-space:pre-wrap;word-wrap:break-word;
+      display:block
+    }
+    #waiting{
+      height:100%;display:flex;align-items:center;justify-content:center;
+      color:#9ca3af;font-size:15px
+    }
+  </style>
+</head>
+<body>
+<div id="sidebar">
+  <h2>History</h2>
+  <div id="history-list"></div>
+</div>
+<div id="pane">
+  <div id="hint">▶ Press Space to start reading</div>
+  <div id="content-wrap">
+    <div id="waiting">Waiting for content…</div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<script>
+let current = null;
+
+function titleFromSlug(slug) {
+  let m = slug.match(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_(.+)$/);
+  return (m ? m[1] : slug).replace(/-/g,' ');
+}
+function dateFromSlug(slug) {
+  let m = slug.match(/^(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})_/);
+  if (!m) return '';
+  try {
+    let d = new Date(m[1]+'T'+m[2]+':'+m[3]);
+    return d.toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  } catch(e){ return m[1]; }
+}
+
+async function loadSlug(slug) {
+  current = slug;
+  const r = await fetch('/content/'+slug+'.txt');
+  if (!r.ok) return;
+  const text = await r.text();
+
+  document.getElementById('waiting').style.display = 'none';
+  const el = document.getElementById('content');
+  el.textContent = text;
+
+  document.getElementById('hint').classList.add('on');
+  document.getElementById('hint').innerHTML = 'Press <strong>Alt+S</strong> to start reading · No Reedy? <a href="https://chromewebstore.google.com/detail/speed-reading/ihbdojmggkmjbhfflnchljfkgdhokffj" target="_blank">Install extension</a>';
+  document.title = titleFromSlug(slug);
+  renderSidebarActive();
+}
+
+let cachedFiles = [];
+
+function renderSidebarActive() {
+  document.querySelectorAll('.item').forEach(i => {
+    i.classList.toggle('active', i.dataset.slug === current);
+  });
+}
+
+async function refreshSidebar() {
+  const r = await fetch('/api/files');
+  if (!r.ok) return;
+  cachedFiles = await r.json();
+  const list = document.getElementById('history-list');
+  if (!cachedFiles.length) {
+    list.innerHTML = '<div class="empty-history">No history yet.</div>';
+    return;
+  }
+  list.innerHTML = cachedFiles.map(slug => `
+    <div class="item ${slug===current?'active':''}" data-slug="${slug}"
+         onclick="loadSlug('${slug}')">
+      <div class="title">${titleFromSlug(slug)}</div>
+      <div class="date">${dateFromSlug(slug)}</div>
+    </div>`).join('');
+}
+
+async function autoLoadMostRecent() {
+  const r = await fetch('/api/files');
+  if (r.ok) {
+    const files = await r.json();
+    if (files.length > 0) {
+      await loadSlug(files[0]);
+    }
+  }
+}
+
+async function pollPending() {
+  try {
+    const r = await fetch('/api/pending');
+    if (r.ok) {
+      const d = await r.json();
+      if (d.slug) {
+        await refreshSidebar();
+        await loadSlug(d.slug);
+      }
+    }
+  } catch(e){}
+  setTimeout(pollPending, 500);
+}
+
+refreshSidebar();
+autoLoadMostRecent();
+pollPending();
+</script>
+</body>
+</html>"""
+
+
+# ── HTTP request handler ─────────────────────────────────────────────────────
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, *a): pass
+
+    def _send(self, body: bytes, status=200, ctype='text/plain; charset=utf-8'):
+        self.send_response(status)
+        self.send_header('Content-Type', ctype)
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _json(self, data, status=200):
+        self._send(json.dumps(data).encode(), status, 'application/json')
+
+    def do_GET(self):
+        path = urlparse(self.path).path
+
+        if path == '/':
+            self._send(SPA_HTML.encode(), ctype='text/html; charset=utf-8')
+
+        elif path == '/api/pending':
+            p = data_dir() / '.pending'
+            if p.exists():
+                slug = p.read_text(encoding='utf-8').strip()
+                p.unlink(missing_ok=True)
+                self._json({'slug': slug})
+            else:
+                self._json({})
+
+        elif path == '/api/files':
+            d = data_dir()
+            slugs = sorted(
+                [f.stem for f in d.glob('????-??-??_??-??_*.txt')],
+                reverse=True
+            )
+            self._json(slugs)
+
+        elif path.startswith('/content/') and path.endswith('.txt'):
+            slug = path[9:-4]
+            if re.search(r'[/\\.]', slug):   # no traversal
+                self._send(b'not found', 404)
+                return
+            f = data_dir() / (slug + '.txt')
+            if f.exists():
+                self._send(f.read_bytes(), ctype='text/plain; charset=utf-8')
+            else:
+                self._send(b'not found', 404)
+        else:
+            self._send(b'not found', 404)
+
+    def do_POST(self):
+        if self.path == '/api/stop':
+            self._json({'ok': True})
+            import threading
+            threading.Thread(target=self.server.shutdown, daemon=True).start()
+        else:
+            self._send(b'not found', 404)
+
+
+# ── Modes ────────────────────────────────────────────────────────────────────
+
+def mode_ingest(raw_slug: str):
+    """Read stdin, save as timestamped .txt, set as pending, start server."""
+    d = data_dir()
+    d.mkdir(parents=True, exist_ok=True)
+
+    text = sys.stdin.read()
+
+    # Prepend timestamp if slug doesn't already have one
+    if not re.match(r'^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}_', raw_slug):
+        ts = datetime.now().strftime('%Y-%m-%d_%H-%M')
+        slug = f'{ts}_{raw_slug}'
+    else:
+        slug = raw_slug
+
+    (d / (slug + '.txt')).write_text(text, encoding='utf-8')
+    (d / '.pending').write_text(slug, encoding='utf-8')
+
+    import webbrowser
+    if not server_running():
+        start_server_daemon()
+    webbrowser.open(f'http://localhost:{PORT}/')
+
+
+def mode_stop():
+    import urllib.request, urllib.error
+    try:
+        urllib.request.urlopen(
+            urllib.request.Request(
+                f'http://localhost:{PORT}/api/stop',
+                method='POST', data=b''
+            ),
+            timeout=3
+        )
+        print('Reedy server stopped.')
+    except urllib.error.URLError:
+        print('Reedy server is not running.')
+
+
+def mode_list():
+    d = data_dir()
+    files = sorted(d.glob('????-??-??_??-??_*.txt'), reverse=True)
+    if not files:
+        print('(no history files)')
+    else:
+        for f in files:
+            print(f.name)
+
+
+def mode_clean():
+    d = data_dir()
+    files = list(d.glob('????-??-??_??-??_*.txt'))
+    for f in files:
+        f.unlink()
+    (d / '.pending').unlink(missing_ok=True)
+    print(f'Deleted {len(files)} file(s).')
+
+
+def mode_server():
+    d = data_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    httpd = HTTPServer(('127.0.0.1', PORT), Handler)
+    httpd.serve_forever()
+
+
+# ── Entry point ──────────────────────────────────────────────────────────────
+
+if __name__ == '__main__':
+    args = sys.argv[1:]
+    if not args:
+        print(__doc__)
+        sys.exit(1)
+
+    cmd = args[0]
+    if cmd == '--server':
+        mode_server()
+    elif cmd == '--stop':
+        mode_stop()
+    elif cmd == '--list':
+        mode_list()
+    elif cmd == '--clean':
+        mode_clean()
+    elif cmd == '--ingest' and len(args) >= 2:
+        mode_ingest(args[1])
+    else:
+        print(f'Unknown: {args}', file=sys.stderr)
+        sys.exit(1)
