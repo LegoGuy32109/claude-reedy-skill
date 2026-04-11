@@ -30,6 +30,8 @@ All reedy bash commands use this invocation pattern:
 
 ### Step 1 — Detect Python
 
+Tell the user: "Checking for Python 3 (required to run the local Reedy server)..."
+
 ```bash
 python3 --version 2>/dev/null && echo "python3" || (python --version 2>/dev/null && echo "python") || echo "not_found"
 ```
@@ -39,29 +41,45 @@ python3 --version 2>/dev/null && echo "python3" || (python --version 2>/dev/null
 
 ### Step 2 — Find the reedy-serve script
 
+Tell the user: "Locating the reedy-serve script in your Claude plugin installation..."
+
+Search the installed plugin cache first, then fall back to the marketplace clone:
+
 ```bash
-find "$HOME/.claude" -name "reedy-serve" 2>/dev/null | head -1
+find "$HOME/.claude/plugins/cache" -name "reedy-serve" 2>/dev/null | head -1
 ```
 
-Store the result as SCRIPT_PATH. If empty, tell the user the plugin doesn't appear to be installed and stop.
+If empty, try:
+
+```bash
+find "$HOME/.claude/plugins/marketplaces" -name "reedy-serve" 2>/dev/null | head -1
+```
+
+Store the result as SCRIPT_PATH. If still empty, tell the user the plugin doesn't appear to be installed and stop.
 
 ### Step 3 — Write the runtime env
 
+Tell the user: "Writing runtime config to `~/.local/share/reedy/reedy.env` — this stores the Python path and script location so commands run without re-detecting them each session (the SessionStart hook keeps this up to date automatically)..."
+
 ```bash
-$PYTHON_CMD $SCRIPT_PATH --write-runtime "$(dirname $SCRIPT_PATH)"
+$PYTHON_CMD "$SCRIPT_PATH" --write-runtime "$(dirname "$SCRIPT_PATH")"
 ```
 
 ### Step 4 — Add allowedTools to user settings
 
-Read `~/.claude/settings.json`. If it doesn't exist, treat it as `{}`. Add `"Bash(*reedy-serve*)"` to the `allowedTools` array if not already present. Write the file back. Tell the user you're updating their settings and what you're adding.
+Tell the user: "Adding `Bash(*reedy-serve*)` and `Write(/tmp/reedy_content.txt)` to `allowedTools` in `~/.claude/settings.json` — this allows reedy-serve to run and response content to be written to the temp ingest file without prompts each time..."
+
+Read `~/.claude/settings.json`. If it doesn't exist, treat it as `{}`. Add both `"Bash(*reedy-serve*)"` and `"Write(/tmp/reedy_content.txt)"` to the `allowedTools` array (nested under `permissions.allow` if that structure exists, otherwise top-level) if not already present. Write the file back.
 
 ### Step 5 — Verify
+
+Tell the user: "Verifying the installation end-to-end..."
 
 ```bash
 . "$HOME/.local/share/reedy/reedy.env" && "$REEDY_PY" "$REEDY_SCRIPT" --list >/dev/null 2>&1 && echo "ok" || echo "fail"
 ```
 
-- If `ok`: tell the user setup is complete and they can use `/reedy`.
+- If `ok`: tell the user setup is complete and they're ready to use `/reedy`.
 - If `fail`: tell the user the script was found but failed to run, and show any error output.
 
 ---

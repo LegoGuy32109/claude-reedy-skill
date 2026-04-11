@@ -12,14 +12,17 @@ A Claude Code plugin that sends Claude responses directly to the [Reedy RSVP spe
 ## Installation
 
 ```bash
-claude plugin install reedy
+claude plugin marketplace add https://github.com/LegoGuy32109/claude-reedy-skill
+claude plugin install reedy@reedy
 ```
 
-On first use, `/reedy` will automatically detect your Python install, configure permissions, and verify everything works. You can also trigger this manually:
+On first use, the command will automatically detect your Python install, write a runtime config, add `Bash(*reedy-serve*)` to your `allowedTools`, and verify everything works. You can also trigger this manually:
 
 ```
 /reedy setup
 ```
+
+> **Note:** Depending on your Claude Code version the command may appear as `/reedy:reedy` in the skill list. Both `/reedy` and `/reedy:reedy` invoke the same skill.
 
 ## Commands
 
@@ -27,7 +30,7 @@ On first use, `/reedy` will automatically detect your Python install, configure 
 |---|---|
 | `/reedy` | Send the last Claude response to Reedy |
 | `/reedy [prompt]` | Answer a prompt in plain prose and send it to Reedy |
-| `/reedy setup` | Run first-time setup (auto-runs on first use) |
+| `/reedy setup` | First-time setup: detects Python, writes runtime config, configures permissions |
 | `/reedy stop` | Stop the local Reedy server |
 | `/reedy clean` | Clear reading history |
 
