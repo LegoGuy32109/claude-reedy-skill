@@ -32,9 +32,9 @@ No Python or local server required. The web skill strips markdown from Claude's 
 
 __Setup:__
 
-1. Download [`reedy-claude-web-skill.md`](https://raw.githubusercontent.com/LegoGuy32109/claude-reedy-skill/main/reedy-claude-web-skill.md) from this repo.
+1. Download [`reedy-claude-web-skill.md`](https://raw.githubusercontent.com/LegoGuy32109/claude-reedy-skill/main/reedy-claude-web-skill.md) from this repo. _(Ctrl + S when at file)_
 2. Navigate to [claude.ai](https://claude.ai/customize/skills)
-3. In the sidebar, click __Customize__ → __Skills__ → __+ (Plus)__ -> __Create skill__ and upload `reedy-claude-web-skill.md`.
+3. In the sidebar, click __Customize__ → __Skills__ → __+ (Plus)__ → __Create skill__ and upload `reedy-claude-web-skill.md`.
 4. That's it! The skill is now active for every conversation in that Project.
 
 __Usage:__
